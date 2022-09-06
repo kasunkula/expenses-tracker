@@ -3,51 +3,49 @@ import {CircularProgressbarWithChildren} from 'react-circular-progressbar';
 
 class CategorySummary extends React.Component {
     getPercentage(totalAllocation, totalSpend) {
-        if (totalSpend > totalAllocation) {
-            return 100;
-        }
         return Math.round((totalSpend * 100) / totalAllocation);
     }
 
-    getExpectedSpendPercentage(){
-        const date = new Date();
-        const beginOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-        const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    getExpectedSpendPercentage(year, month) {
+        const now = new Date();
+        const beginOfMonth = new Date(year, month, 1);
+        const endOfMonth = new Date(year, month + 1, 0);
 
-        const diffInMs = Math.abs(date - beginOfMonth);
+        const diffInMs = Math.abs(now - beginOfMonth);
         const daysElapsed = Math.round(diffInMs / (1000 * 60 * 60 * 24));
         const daysInMonth = Math.abs(endOfMonth - beginOfMonth) / (1000 * 60 * 60 * 24);
         const expectedSpentPerc = Math.round(daysElapsed * 100 / daysInMonth)
-        console.log("daysElapsed [" + daysElapsed + "] " + "daysInMonth [" + daysInMonth + "] ")
-
+        // console.log("Year, Month [" + year + "," + month + "] begin [" + beginOfMonth + "] end [" + endOfMonth + "] current [" + now + "]")
         return expectedSpentPerc < 100 ? expectedSpentPerc : 100
     }
 
-    getColourCode(allocation, spent) {
+    getColourCode(allocation, spent, year, month, category) {
         const percentage = this.getPercentage(allocation, spent)
         const colourCodes = {
-            underSpent : ["progress-order", "#1579ff", "#7922e5", "blue"],
-            onBudget : ["progress-visitors", "#b4ec51", "#429321", "green"],
-            slightOverSpent : ["progress-impressions", "#fad961", "#f76b1c", "yellow"],
-            extremelyOverSpent : ["progress-followers", "#f5515f", "#9f041b", "red"],
+            underSpent: ["progress-order", "#1579ff", "#7922e5", "blue"],
+            onBudget: ["progress-visitors", "#b4ec51", "#429321", "green"],
+            slightlyOverSpent: ["progress-impressions", "#fad961", "#f76b1c", "yellow"],
+            extremelyOverSpent: ["progress-followers", "#f5515f", "#9f041b", "red"],
         }
 
         let colourCode
-        const expectedSpentPercentage = this.getExpectedSpendPercentage()
-        console.log("expectedSpentPercentage [" + expectedSpentPercentage + "] " + "percentage [" + percentage + "] ")
-        if (percentage <= this.getAdjustedExpectedPercentage(expectedSpentPercentage, 0.9)) {
+        const expectedSpentPercentage = this.getExpectedSpendPercentage(year, month)
+        // console.log("[" + category + "] Allocation [" + allocation + "] " +
+        //     "Spend [" + spent + "] expectedSpentPercentage [" + expectedSpentPercentage + "] " +
+        //     "spendPerc [" + percentage + "]")
+        if (percentage <= this.getAdjustedPercentage(expectedSpentPercentage, 0.85)) {
             colourCode = colourCodes['underSpent']
-        } else if (percentage <= this.getAdjustedExpectedPercentage(expectedSpentPercentage, 1.1)) {
+        } else if (percentage <= this.getAdjustedPercentage(expectedSpentPercentage, 1)) {
             colourCode = colourCodes['onBudget']
-        } else if (percentage < this.getAdjustedExpectedPercentage(expectedSpentPercentage, 1.3)) {
-            colourCode = colourCodes['slightOverSpent']
+        } else if (percentage < this.getAdjustedPercentage(expectedSpentPercentage, 1.15)) {
+            colourCode = colourCodes['slightlyOverSpent']
         } else {
             colourCode = colourCodes['extremelyOverSpent']
         }
         return colourCode
     }
 
-    getAdjustedExpectedPercentage(percentage, adjustmentRatio) {
+    getAdjustedPercentage(percentage, adjustmentRatio) {
         const adjustedRatio = Math.round(percentage * adjustmentRatio);
         return adjustedRatio < 100 ? adjustedRatio : 100;
     }
@@ -57,11 +55,11 @@ class CategorySummary extends React.Component {
     }
 
     render() {
-        // console.log("[CategorySummary|render] rendering component")
-        // console.log(this.props)
         let colourCode = ["", "", "", ""]
-        if (this.props.name != null){
-            colourCode = this.getColourCode(this.props.allocation, this.props.spent)
+        if (this.props.name != null) {
+            colourCode =
+                this.getColourCode(this.props.allocation, this.props.spent,
+                    this.props.year, this.props.month, this.props.name)
         }
 
         return (

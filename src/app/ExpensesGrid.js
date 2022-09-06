@@ -5,7 +5,11 @@ class ExpensesGrid extends React.Component {
     render() {
         return (
             <div>
-                <h3 style={{marginLeft: "15px", marginTop: "10px"}}>{this.props.category != null ? "All expenses for" : "All expenses"} <b>{this.props.category}</b></h3>
+                <h3 style={{marginLeft: "15px", marginTop: "10px"}}>
+                    {this.props.category != null ? "All expenses for " : "All expenses"}
+                    <b>{this.props.category} </b>
+                    ({this.props.expenses.length})
+                </h3>
                 <Table striped bordered hover responsive variant="dark">
                     <thead>
                     <tr>

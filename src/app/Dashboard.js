@@ -18,38 +18,85 @@ Amplify.configure(awsConfig);
 class Dashboard extends React.Component {
     constructor(props) {
         super(props);
+        const now = new Date();
         this.state = {
             loadingComplete: false,
             showSummary: true,
             showAddExpense: false,
             showExpensesGrid: false,
             addExpenseCategory: null,
-            expensesGridCategory: null
+            expensesGridCategory: null,
+            year: now.getFullYear(),
+            month: now.getMonth()
         };
         this.onClickAddExpense = this.onClickAddExpense.bind(this);
         this.onClickExpensesGridView = this.onClickExpensesGridView.bind(this);
         this.onAddExpense = this.onAddExpense.bind(this);
+        this.goToNextMonth = this.goToNextMonth.bind(this);
+        this.goToPreviousMonth = this.goToPreviousMonth.bind(this);
     }
 
     async componentDidMount() {
-        console.log("[Dashboard|componentDidMount] - Querying expenses")
-        const getAllExpenseList = await API.graphql(graphqlOperation(listExpenses))
-        const expenses = await getAllExpenseList.data.listExpenses
+        const beginOfMonth = new Date(this.state.year, this.state.month, 1);
+        const endOfMonth = new Date(this.state.year, this.state.month + 1, 0);
+        // console.log("[Dashboard|componentDidMount] - Querying expenses from " +
+        //     beginOfMonth.toLocaleString() + " to " + endOfMonth.toLocaleString())
 
+        let nextToken = null
+        const allExpense = []
+        do {
+            let getExpenses = await API.graphql(graphqlOperation(listExpenses, {
+                nextToken: nextToken
+            }))
+            const expenses = await getExpenses.data.listExpenses
+            nextToken = expenses.nextToken
+            allExpense.push(...expenses.items)
+        } while (nextToken != null)
+
+        this.subscribeToOnCreateExpense()
+
+        this.setState({
+            loadingComplete: true,
+            allExpenses: allExpense
+        })
+    }
+
+    async queryExpenses(year, month) {
+
+    }
+
+    goToNextMonth() {
+        this.setState((prevState) => {
+                const date = new Date(prevState.year, prevState.month + 1)
+                return {
+                    year: date.getFullYear(),
+                    month: date.getMonth()
+                }
+            }
+        )
+    }
+
+    goToPreviousMonth() {
+        this.setState((prevState) => {
+                const date = new Date(prevState.year, prevState.month - 1)
+                return {
+                    year: date.getFullYear(),
+                    month: date.getMonth()
+                }
+            }
+        )
+    }
+
+    subscribeToOnCreateExpense() {
         API.graphql(graphqlOperation(onCreateExpense)).subscribe({
             next: ({provider, value}) => {
-                console.log("[Dashboard|onCreateExpense] Expense - " + value.data.onCreateExpense);
+                // console.log("[Dashboard|onCreateExpense] Expense - " + value.data.onCreateExpense);
                 this.setState((prevState) => ({
                     allExpenses: [...prevState.allExpenses, value.data.onCreateExpense]
                 }))
             },
             error: (error) => console.warn(error)
         });
-
-        this.setState({
-            loadingComplete: true,
-            allExpenses: expenses.items
-        })
     }
 
     onClickAddExpense(category) {
@@ -74,48 +121,55 @@ class Dashboard extends React.Component {
         })
     }
 
-
     onAddExpense(category, subCategory, amount, comment, date, paymentMethod, claimable) {
-        console.log("[Dashboard|onAddExpense] Add Expense - " +
-            category + ", " + subCategory + ", " + amount + ", " + comment + ", " +
-            date + ", " + paymentMethod + ", " + claimable);
+        // console.log("[Dashboard|onAddExpense] Add Expense - " +
+        //     category + ", " + subCategory + ", " + amount + ", " + comment + ", " +
+        //     date + ", " + paymentMethod + ", " + claimable);
+
+        const newExpense = {
+            id: uuidv4(),
+            category: category,
+            subCategory: subCategory,
+            date: date,
+            amount: amount,
+            comment: comment,
+            paymentMethod: paymentMethod,
+            claimable: claimable
+        }
 
         API.graphql(graphqlOperation(createExpense, {
-            input: {
-                id: uuidv4(),
-                category: category,
-                subCategory: subCategory,
-                date: date,
-                amount: amount,
-                comment: comment,
-                paymentMethod: paymentMethod,
-                claimable: false
-            }
+            input: newExpense
         }));
-        this.setState({
-            showSummary: true,
-            showAddExpense: false,
-            showExpensesGrid: false,
-            addExpenseCategory: null,
-            expensesGridCategory: null
-        })
-    }
 
+        this.setState((prevState) => {
+                // const expenses = prevState.allExpenses
+                // expenses.push(newExpense)
+                return {
+                    showSummary: true,
+                    showAddExpense: false,
+                    showExpensesGrid: false,
+                    addExpenseCategory: null,
+                    expensesGridCategory: null,
+                    // allExpenses: expenses
+                }
+            }
+        )
+    }
 
     getTotalSpendForCategory(category, expenses) {
-        return expenses.filter((exp) => (exp.category === category && exp.claimable === false)).reduce((sum, expense) => sum + expense.amount, 0)
+        return expenses.filter((exp) => (exp.category === category && exp.claimable === false))
+            .reduce((sum, expense) => Math.round(sum + expense.amount), 0)
     }
 
-    getExpensesForCurrentMonth(expenses) {
+    getExpensesForMonth(expenses, year, month) {
         return expenses.filter((expense) => {
-            const now = new Date();
             const date = new Date(expense.date)
-            return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
+            return date.getFullYear() === year && date.getMonth() === month
         })
     }
 
     render() {
-        if (!this.state.loadingComplete){
+        if (!this.state.loadingComplete) {
             return (
                 <div>
                     <NavBar {...this.props} backToDashboard={() => this.setState({
@@ -142,17 +196,17 @@ class Dashboard extends React.Component {
         const subCategories = {
             "Groceries": ['FairPrice', 'ColdStorage', 'Fruits', 'Vegetables', 'Fish', 'Flowers', 'Bakeries', 'Other'],
             "Eating Out": ['Starbucks', 'Old Chang Kee', 'Meals', 'Snacks', 'KOI Thé', 'Other'],
-            "Yara": ['Taekwondo', 'Toys', 'Swimming', 'Rides', 'School Activities', 'Play Area', 'Attractions', 'Shopee', 'Stationary & Books', 'Other'],
+            "Yara": ['Taekwondo', 'Toys', 'Swimming', 'Rides', 'School Activities', 'Play Area', 'Attractions', 'Shopee', 'Stationary & Books', 'Other', 'Cloths'],
             "Transport": ['Grab', 'Bus/Mrt', 'Gojek', 'Taxi', 'Other'],
             "Misc": ['Medical', 'Disney+', 'Amazon Prime', 'House Maintenance', 'Shopping', 'IKEA', 'Attractions', 'Shopee', 'Entertainment', 'Other'],
         }
         let summary = {
             "Groceries": {
-                "allocation": 800,
+                "allocation": 700,
                 "spent": 0
             },
             "Eating Out": {
-                "allocation": 400,
+                "allocation": 500,
                 "spent": 0
             },
             "Yara": {
@@ -170,7 +224,7 @@ class Dashboard extends React.Component {
         }
 
         if (this.state.allExpenses) {
-            const expenses = this.getExpensesForCurrentMonth(this.state.allExpenses)
+            const expenses = this.getExpensesForMonth(this.state.allExpenses, this.state.year, this.state.month)
             let totalAllocation = 0
             let totalSpend = 0
             for (const category in summary) {
@@ -188,21 +242,25 @@ class Dashboard extends React.Component {
             }
         }
 
-
         return (
             <div>
-                <NavBar {...this.props} backToDashboard={() => this.setState({
-                    showSummary: true,
-                    showAddExpense: false,
-                    showExpensesGrid: false,
-                    addExpenseCategory: null,
-                    expensesGridCategory: null
-                })}/>
+                <NavBar {...this.props} year={this.state.year} month={this.state.month}
+                        goToPreviousMonth={this.goToPreviousMonth} goToNextMonth={this.goToNextMonth}
+                        backToDashboard={() => this.setState({
+                            showSummary: true,
+                            showAddExpense: false,
+                            showExpensesGrid: false,
+                            addExpenseCategory: null,
+                            expensesGridCategory: null
+                        })}/>
+
                 {this.state.showSummary &&
                     <SummaryView onAddExpense={this.onClickAddExpense}
                                  categories={categories}
                                  summary={summary}
                                  onExpensesGridView={this.onClickExpensesGridView}
+                                 year={this.state.year}
+                                 month={this.state.month}
                     />}
                 {this.state.showAddExpense &&
                     <AddExpense
@@ -222,9 +280,12 @@ class Dashboard extends React.Component {
                     this.state.showExpensesGrid &&
                     <ExpensesGrid
                         category={this.state.expensesGridCategory}
-                        expenses={this.getExpensesForCurrentMonth(this.state.allExpenses).filter((expense) => (
-                            this.state.expensesGridCategory == null || expense.category === this.state.expensesGridCategory
-                        ))}
+                        expenses={
+                            this.getExpensesForMonth(this.state.allExpenses, this.state.year, this.state.month)
+                                .filter((expense) => (
+                                    this.state.expensesGridCategory == null ||
+                                    expense.category === this.state.expensesGridCategory
+                                ))}
                     />
                 }
             </div>
