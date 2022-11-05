@@ -37,8 +37,8 @@ class Dashboard extends React.Component {
     }
 
     async componentDidMount() {
-        const beginOfMonth = new Date(this.state.year, this.state.month, 1);
-        const endOfMonth = new Date(this.state.year, this.state.month + 1, 0);
+        // const beginOfMonth = new Date(this.state.year, this.state.month, 1);
+        // const endOfMonth = new Date(this.state.year, this.state.month + 1, 0);
         // console.log("[Dashboard|componentDidMount] - Querying expenses from " +
         //     beginOfMonth.toLocaleString() + " to " + endOfMonth.toLocaleString())
 
@@ -203,23 +203,18 @@ class Dashboard extends React.Component {
         let summary = {
             "Groceries": {
                 "allocation": 700,
-                "spent": 0
             },
             "Eating Out": {
                 "allocation": 500,
-                "spent": 0
             },
             "Yara": {
                 "allocation": 400,
-                "spent": 0
             },
             "Transport": {
                 "allocation": 150,
-                "spent": 0
             },
             "Misc": {
                 "allocation": 250,
-                "spent": 0
             }
         }
 
@@ -280,6 +275,8 @@ class Dashboard extends React.Component {
                     this.state.showExpensesGrid &&
                     <ExpensesGrid
                         category={this.state.expensesGridCategory}
+                        allocation={summary[this.state.expensesGridCategory != null ?
+                            this.state.expensesGridCategory : "Total"]['allocation']}
                         expenses={
                             this.getExpensesForMonth(this.state.allExpenses, this.state.year, this.state.month)
                                 .filter((expense) => (

@@ -1,8 +1,5 @@
 import * as React from "react";
 import CategorySummary from "./CategorySummary";
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
 
 class SummaryView extends React.Component {
     render() {
