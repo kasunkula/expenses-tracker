@@ -4,45 +4,61 @@ import {Form, Button, ButtonGroup, ToggleButton, Alert} from 'react-bootstrap';
 class AddExpense extends React.Component {
     constructor(props) {
         super(props);
-        this.addExpense = this.addExpense.bind(this);
+        this.EditExpense = this.EditExpense.bind(this);
         this.onFormElementValueChange = this.onFormElementValueChange.bind(this);
+        this.onDeleteExpense = this.onDeleteExpense.bind(this);
         this.state = {
-            subCategory: null,
-            date: new Date().toISOString().slice(0, 10),
-            comment: "",
-            paymentMethod: "Citi",
-            claimable: false,
-            formError: false,
+            id: props.expense.id,
+            category: props.expense.category,
+            subCategory: props.expense.subCategory,
+            date: props.expense.date,
+            amount: props.expense.amount,
+            comment: props.expense.comment,
+            paymentMethod: props.expense.paymentMethod,
+            claimable: props.expense.claimable,
+            formError: "",
             showFormError: false
         }
     }
 
-    addExpense(e) {
+    EditExpense(e) {
         e.preventDefault();
-        if (this.props.category == null ||
+        if (this.state.category == null ||
             this.state.subCategory == null ||
-            this.state.amount == null || this.state.amount === "" ||
+            this.state.amount == null || this.state.amount == "" ||
             this.state.date == null ||
             this.state.paymentMethod == null ||
             this.state.claimable == null) {
             this.setState({
                 showFormError: true,
-                formError: (this.state.amount == null || this.state.amount === "") ? "Amount missing...!" : "Invalid inputs...!"
+                formError: (this.state.amount == null || this.state.amount == "") ? "Amount missing...!" : "Invalid inputs...!"
             })
-        } else if (!this.props.user.attributes.zoneinfo || this.props.user.attributes.zoneinfo !== "Home") {
+        } else if (!this.props.user.attributes.zoneinfo || this.props.user.attributes.zoneinfo != "Home") {
             this.setState({
                 showFormError: true,
-                formError: "User not permitted to add expenses (view Only)"
+                formError: "User not permitted to Edit expenses (view Only)"
             })
-        } else
-            this.props.onAddExpense(this.props.category, this.state.subCategory, this.state.amount,
-                this.state.comment, this.state.date, this.state.paymentMethod, this.state.claimable)
+        } else {
+            this.props.onEditSubmit(this.state.id, this.state.amount, this.state.comment, this.state.date, this.state.paymentMethod,
+                this.state.claimable)
+        }
     }
 
     onFormElementValueChange(e) {
         this.setState({
             [e.target.name]: e.target.value
         })
+    }
+
+    onDeleteExpense(id){
+        if (!this.props.user.attributes.zoneinfo || this.props.user.attributes.zoneinfo != "Home") {
+            this.setState({
+                showFormError: true,
+                formError: "User not permitted to Delete expenses (view Only)"
+            })
+        } else {
+            this.props.onDeleteSubmit(this.state.id)
+        }
     }
 
     render() {
@@ -59,23 +75,6 @@ class AddExpense extends React.Component {
             <div style={{
                 marginTop: "10px"
             }}>
-                {this.state.subCategory == null &&
-                    <h3 style={{marginLeft: "15px"}}>Add an expense under <b>{this.props.category}</b></h3>}
-                {this.state.subCategory != null && <h3 style={{marginLeft: "15px"}}>Add
-                    for <b>{this.props.category}</b> under <b>{this.state.subCategory}</b></h3>}
-                <div className="col" style={rowStyleOverride}>
-                    {
-                        this.state.subCategory == null &&
-                        this.props.subCategories.sort((a, b) => a.toLowerCase() > b.toLowerCase() ? 1 : -1).map((subCategory) => {
-                            return (
-                                <button type="button" className="btn btn-dark btn-lg btn-block" key={subCategory}
-                                        onClick={() => this.setState({subCategory: subCategory})}>
-                                    {subCategory}
-                                </button>
-                            )
-                        })
-                    }
-                </div>
                 {
                     this.state.subCategory != null &&
                     <div>
@@ -85,10 +84,11 @@ class AddExpense extends React.Component {
                                     display: "flex",
                                     justifyContent: "space-between"
                                 }}>
-                                    <h4 className="card-title">Details</h4>
+                                    <h4 className="card-title">Edit/Delete Expense</h4>
                                     <div className="form-check">
                                         <label className="form-check-label text-muted">
                                             <input type="checkbox" className="form-check-input" name="claimable"
+                                                   value={this.state.claimable}
                                                    onChange={() => {
                                                        this.setState((prevState) => ({
                                                            claimable: !prevState.claimable
@@ -99,7 +99,23 @@ class AddExpense extends React.Component {
                                         </label>
                                     </div>
                                 </div>
-                                <Form onSubmit={this.addExpense}>
+                                <Form onSubmit={this.EditExpense}>
+                                    <Form.Group>
+                                        <div className="input-group">
+                                            <Form.Control type="text" className="form-control" disabled={true}
+                                                          value={this.state.category} name="category"
+                                                          aria-label="category" aria-describedby="basic-addon1"
+                                            />
+                                        </div>
+                                    </Form.Group>
+                                    <Form.Group>
+                                        <div className="input-group">
+                                            <Form.Control type="text" className="form-control" disabled={true}
+                                                          value={this.state.subCategory} name="subCategory"
+                                                          aria-label="subCategory" aria-describedby="basic-addon1"
+                                            />
+                                        </div>
+                                    </Form.Group>
                                     <Form.Group>
                                         <div className="input-group">
                                             <Form.Control type="date" className="form-control"
@@ -113,6 +129,7 @@ class AddExpense extends React.Component {
                                         <div className="input-group">
                                             <Form.Control type="number" className="form-control" placeholder="Amount"
                                                           aria-label="Amount" name="amount" step="0.01"
+                                                          value={this.state.amount}
                                                           onChange={this.onFormElementValueChange}
                                             />
                                         </div>
@@ -140,6 +157,7 @@ class AddExpense extends React.Component {
                                         <div className="input-group">
                                             <Form.Control type="text" className="form-control"
                                                           placeholder="Comment" name="comment"
+                                                          value={this.state.comment}
                                                           aria-label="Comment" aria-describedby="basic-addon1"
                                                           onChange={this.onFormElementValueChange}
                                             />
@@ -149,7 +167,10 @@ class AddExpense extends React.Component {
                                         display: "flex",
                                     }}>
                                         <Button variant="primary" type="submit">
-                                            Add
+                                            Edit
+                                        </Button>
+                                        <Button variant="primary" onClick={() => this.onDeleteExpense(this.state.id)}>
+                                            Delete
                                         </Button>
                                         <Button variant="primary" onClick={() => this.props.backToDashboard()}>
                                             Cancel

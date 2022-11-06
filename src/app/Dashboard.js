@@ -6,11 +6,12 @@ import * as React from "react";
 import NavBar from "./NavBar";
 import SummaryView from "./SummaryView";
 import AddExpense from "./AddExpense";
-import {createExpense} from "../graphql/mutations";
+import {createExpense, deleteExpense, updateExpense} from "../graphql/mutations";
 import {v4 as uuidv4} from 'uuid';
 import {listExpenses} from "../graphql/queries";
 import {onCreateExpense} from "../graphql/subscriptions";
 import ExpensesGrid from "./ExpensesGrid";
+import EditExpense from "./EditExpense";
 
 Amplify.configure(awsConfig);
 
@@ -21,39 +22,55 @@ class Dashboard extends React.Component {
         const now = new Date();
         this.state = {
             loadingComplete: false,
-            showSummary: true,
-            showAddExpense: false,
-            showExpensesGrid: false,
+            displayComponent: "Summary",
             addExpenseCategory: null,
             expensesGridCategory: null,
             year: now.getFullYear(),
-            month: now.getMonth()
+            month: now.getMonth(),
+            selectedExpense: null
         };
         this.onClickAddExpense = this.onClickAddExpense.bind(this);
         this.onClickExpensesGridView = this.onClickExpensesGridView.bind(this);
         this.onAddExpense = this.onAddExpense.bind(this);
+        this.onEditExpense = this.onEditExpense.bind(this);
+        this.onExpenseSelectFromExpensesGrid = this.onExpenseSelectFromExpensesGrid.bind(this);
+        this.onDeleteExpense = this.onDeleteExpense.bind(this);
         this.goToNextMonth = this.goToNextMonth.bind(this);
         this.goToPreviousMonth = this.goToPreviousMonth.bind(this);
+        this.queryExpenses = this.queryExpenses.bind(this)
+        this.goBackToDashboard = this.goBackToDashboard.bind(this)
     }
 
     async componentDidMount() {
-        // const beginOfMonth = new Date(this.state.year, this.state.month, 1);
-        // const endOfMonth = new Date(this.state.year, this.state.month + 1, 0);
-        // console.log("[Dashboard|componentDidMount] - Querying expenses from " +
-        //     beginOfMonth.toLocaleString() + " to " + endOfMonth.toLocaleString())
+        this.subscribeToOnCreateExpense()
+        await this.queryExpenses(this.state.year, this.state.month)
+    }
+
+    async queryExpenses(year, month) {
+        const beginOfMonth = new Date(year, month, 1);
+        const endOfMonth = new Date(year, month + 1, 0);
+        // console.log("Loading Expenses for year [" + beginOfMonth.toDateString() +
+        //     "] month [" + endOfMonth.toDateString() + "]")
+
+        this.setState({
+            loadingComplete: false,
+            allExpenses: null
+        })
 
         let nextToken = null
+        let filter = {
+            date: {ge: beginOfMonth}
+        };
         const allExpense = []
         do {
             let getExpenses = await API.graphql(graphqlOperation(listExpenses, {
-                nextToken: nextToken
+                nextToken: nextToken,
+                filter: filter
             }))
             const expenses = await getExpenses.data.listExpenses
             nextToken = expenses.nextToken
             allExpense.push(...expenses.items)
         } while (nextToken != null)
-
-        this.subscribeToOnCreateExpense()
 
         this.setState({
             loadingComplete: true,
@@ -61,24 +78,23 @@ class Dashboard extends React.Component {
         })
     }
 
-    async queryExpenses(year, month) {
-
-    }
-
     goToNextMonth() {
         this.setState((prevState) => {
                 const date = new Date(prevState.year, prevState.month + 1)
+                this.queryExpenses(date.getFullYear(), date.getMonth())
                 return {
                     year: date.getFullYear(),
                     month: date.getMonth()
                 }
             }
         )
+
     }
 
     goToPreviousMonth() {
         this.setState((prevState) => {
                 const date = new Date(prevState.year, prevState.month - 1)
+                this.queryExpenses(date.getFullYear(), date.getMonth())
                 return {
                     year: date.getFullYear(),
                     month: date.getMonth()
@@ -101,9 +117,7 @@ class Dashboard extends React.Component {
 
     onClickAddExpense(category) {
         this.setState(() => ({
-                    showSummary: false,
-                    showAddExpense: true,
-                    showExpensesGrid: false,
+                    displayComponent: "AddExpense",
                     addExpenseCategory: category,
                     expensesGridCategory: null
                 }
@@ -113,9 +127,7 @@ class Dashboard extends React.Component {
 
     onClickExpensesGridView(category) {
         this.setState({
-            showSummary: false,
-            showAddExpense: false,
-            showExpensesGrid: true,
+            displayComponent: "ExpensesGrid",
             addExpenseCategory: null,
             expensesGridCategory: category !== 'Total' ? category : null
         })
@@ -142,18 +154,70 @@ class Dashboard extends React.Component {
         }));
 
         this.setState((prevState) => {
-                // const expenses = prevState.allExpenses
-                // expenses.push(newExpense)
                 return {
-                    showSummary: true,
-                    showAddExpense: false,
-                    showExpensesGrid: false,
+                    displayComponent: "Summary",
                     addExpenseCategory: null,
                     expensesGridCategory: null,
-                    // allExpenses: expenses
                 }
             }
         )
+    }
+
+    onExpenseSelectFromExpensesGrid(expense) {
+        this.setState((prevState) => {
+                return {
+                    displayComponent: "EditExpense",
+                    addExpenseCategory: null,
+                    expensesGridCategory: null,
+                    selectedExpense: expense
+                }
+            }
+        )
+    }
+
+    onEditExpense(id, amount, comment, date, paymentMethod, claimable) {
+        API.graphql(graphqlOperation(updateExpense, {
+            input: {
+                id: id,
+                date: date,
+                amount: amount,
+                comment: comment,
+                paymentMethod: paymentMethod,
+                claimable: claimable
+            }
+        }));
+
+        this.setState((prevState) => {
+                return {
+                    displayComponent: "Summary",
+                    addExpenseCategory: null,
+                    expensesGridCategory: null,
+                    selectedExpense: null
+                }
+            }
+        )
+
+        this.queryExpenses(this.state.year, this.state.month)
+    }
+
+    onDeleteExpense(expenseId) {
+        API.graphql(graphqlOperation(deleteExpense, {
+            input: {
+                id: expenseId,
+            }
+        }));
+
+        this.setState((prevState) => {
+                return {
+                    displayComponent: "Summary",
+                    addExpenseCategory: null,
+                    expensesGridCategory: null,
+                    selectedExpense: null
+                }
+            }
+        )
+
+        this.queryExpenses(this.state.year, this.state.month)
     }
 
     getTotalSpendForCategory(category, expenses) {
@@ -168,14 +232,21 @@ class Dashboard extends React.Component {
         })
     }
 
+    goBackToDashboard(reloadExpenses=true){
+        this.setState({
+            displayComponent: "Summary",
+            addExpenseCategory: null,
+            expensesGridCategory: null
+        })
+    }
+
+
     render() {
         if (!this.state.loadingComplete) {
             return (
                 <div>
                     <NavBar {...this.props} backToDashboard={() => this.setState({
-                        showSummary: true,
-                        showAddExpense: false,
-                        showExpensesGrid: false,
+                        displayComponent: "Summary",
                         addExpenseCategory: null,
                         expensesGridCategory: null
                     })}/>
@@ -241,15 +312,9 @@ class Dashboard extends React.Component {
             <div>
                 <NavBar {...this.props} year={this.state.year} month={this.state.month}
                         goToPreviousMonth={this.goToPreviousMonth} goToNextMonth={this.goToNextMonth}
-                        backToDashboard={() => this.setState({
-                            showSummary: true,
-                            showAddExpense: false,
-                            showExpensesGrid: false,
-                            addExpenseCategory: null,
-                            expensesGridCategory: null
-                        })}/>
+                        backToDashboard={this.goBackToDashboard}/>
 
-                {this.state.showSummary &&
+                {this.state.displayComponent === "Summary" &&
                     <SummaryView onAddExpense={this.onClickAddExpense}
                                  categories={categories}
                                  summary={summary}
@@ -257,24 +322,23 @@ class Dashboard extends React.Component {
                                  year={this.state.year}
                                  month={this.state.month}
                     />}
-                {this.state.showAddExpense &&
+                {this.state.displayComponent === "AddExpense" &&
                     <AddExpense
                         category={this.state.addExpenseCategory}
                         subCategories={subCategories[this.state.addExpenseCategory]}
                         user={this.props.user}
                         onAddExpense={this.onAddExpense}
                         backToDashboard={() => this.setState({
-                            showSummary: true,
-                            showAddExpense: false,
-                            showExpensesGrid: false,
+                            displayComponent: "Summary",
                             addExpenseCategory: null,
                             expensesGridCategory: null
                         })}
                     />}
                 {
-                    this.state.showExpensesGrid &&
+                    this.state.displayComponent === "ExpensesGrid" &&
                     <ExpensesGrid
                         category={this.state.expensesGridCategory}
+                        onExpenseSelect={this.onExpenseSelectFromExpensesGrid}
                         allocation={summary[this.state.expensesGridCategory != null ?
                             this.state.expensesGridCategory : "Total"]['allocation']}
                         expenses={
@@ -283,6 +347,20 @@ class Dashboard extends React.Component {
                                     this.state.expensesGridCategory == null ||
                                     expense.category === this.state.expensesGridCategory
                                 ))}
+                    />
+                }
+                {
+                    this.state.displayComponent === "EditExpense" &&
+                    <EditExpense
+                        expense={this.state.selectedExpense}
+                        onEditSubmit={this.onEditExpense}
+                        onDeleteSubmit={this.onDeleteExpense}
+                        user={this.props.user}
+                        backToDashboard={() => this.setState({
+                            displayComponent: "Summary",
+                            addExpenseCategory: null,
+                            expensesGridCategory: null
+                        })}
                     />
                 }
             </div>
