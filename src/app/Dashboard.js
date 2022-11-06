@@ -12,6 +12,7 @@ import {listExpenses} from "../graphql/queries";
 import {onCreateExpense} from "../graphql/subscriptions";
 import ExpensesGrid from "./ExpensesGrid";
 import EditExpense from "./EditExpense";
+import {Spinner} from "react-bootstrap";
 
 Amplify.configure(awsConfig);
 
@@ -250,9 +251,13 @@ class Dashboard extends React.Component {
                         addExpenseCategory: null,
                         expensesGridCategory: null
                     })}/>
-                    {/*<div>*/}
-                    {/*    <Spinner animation="border" />*/}
-                    {/*</div>*/}
+                    <div>
+                        <Spinner style={{
+                            padding: "10%",
+                            marginLeft: "40%",
+                            marginTop: "55%",
+                        }} animation="border" />
+                    </div>
                 </div>
             )
         }
